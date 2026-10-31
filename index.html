@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SuperBot - מרכז שליטה ואתגר פיזיקלי</title>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;800&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+    
+    <!-- ספריות חיצוניות: Firebase, Confetti ומחולל QRCode -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #0b1120;
+            --card-bg: rgba(15, 23, 42, 0.85);
+            --primary: #06b6d4;
+            --primary-hover: #22d3ee;
+            --danger: #ef4444;
+            --danger-hover: #f87171;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --purple: #a855f7;
+            --purple-glow: #c084fc;
+            --gold: #fbbf24;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Assistant', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            background: radial-gradient(circle at 50% 10%, #1e1b4b 0%, #070b14 90%);
+            padding: 12px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 580px;
+            text-align: center;
+        }
+
+        header {
+            margin-bottom: 12px;
+        }
+
+        header h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 4px;
+            color: #fff;
+            text-shadow: 0 0 20px rgba(6, 182, 212, 0.6);
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* סרגל ניווט בין שלט למשימה */
+        .tab-switcher {
+            display: flex;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 5px;
+            gap: 6px;
+            margin-bottom: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 12px 8px;
+            font-size: 1rem;
+            font-weight: 700;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--primary) 0%, #0891b2 100%);
+            color: #070b14;
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+        }
+
+        .tab-btn.active.tab-challenge {
+            background: linear-gradient(135deg, var(--purple) 0%, #7e22ce 100%);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
+        }
+
+        .status-panel {
+            background: var(--card-bg);
+            padding: 8px 12px;
+            border-radius: 10px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background-color: #ef4444;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #ef4444;
+            transition: all 0.3s ease;
+        }
+
+        .status-dot.connected {
+            background-color: var(--success);
+            box-shadow: 0 0 12px var(--success);
+        }
+
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+
+        .control-section {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 14px;
+            border-radius: 16px;
+            margin-bottom: 14px;
+            text-align: right;
+            backdrop-filter: blur(10px);
+        }
+
+        .section-title {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 10px;
+            text-align: right;
+        }
+
+        /* שלט כפתורים - רשת 5 עמודות לשילוב כפתורי +/- */
+        .remote-control {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        .btn {
+            background: #334155;
+            border: none;
+            color: white;
+            padding: 14px 0;
+            font-size: 1.25rem;
+            font-weight: bold;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .btn span { font-size: 0.7rem; font-weight: 300; color: var(--text-muted); }
+        .btn:active, .btn.active { transform: scale(0.96); }
+
+        .btn-dir {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+        .btn-dir:active { background: var(--primary); color: #0f172a; }
+
+        .btn-stop { 
+            border: 2px solid var(--danger); 
+            color: var(--danger); 
+        }
+        .btn-stop:active { background: var(--danger); color: white; }
+
+        /* כפתורי מהירות +/- בשלט */
+        .btn-speed-adj {
+            background: linear-gradient(135deg, #1e1b4b 0%, #1e293b 100%);
+            border: 2px solid var(--warning);
+            color: var(--warning);
+            font-size: 1.6rem;
+            line-height: 1;
+        }
+        .btn-speed-adj:active {
+            background: var(--warning);
+            color: #070b14;
+        }
+
+        .btn-auto { border: 2px solid var(--warning); color: var(--warning); }
+        .btn-party-mode {
+            border: 2px solid var(--purple);
+            color: #c084fc;
+            background: linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(30, 41, 59, 0.8) 100%);
+        }
+
+        /* מיקום כפתורים ברשת 5 עמודות */
+        .grid-up     { grid-column: 3; grid-row: 1; }
+        .grid-minus  { grid-column: 1; grid-row: 2; }
+        .grid-right  { grid-column: 2; grid-row: 2; }
+        .grid-stop   { grid-column: 3; grid-row: 2; }
+        .grid-left   { grid-column: 4; grid-row: 2; }
+        .grid-plus   { grid-column: 5; grid-row: 2; }
+        .grid-down   { grid-column: 3; grid-row: 3; }
+
+        /* כפתורי ראש ברשת 3 עמודות רגילה */
+        .head-control {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .head-up    { grid-column: 2; }
+        .head-right { grid-column: 1; grid-row: 2; }
+        .head-stop  { grid-column: 2; grid-row: 2; }
+        .head-left  { grid-column: 3; grid-row: 2; }
+        .head-down  { grid-column: 2; grid-row: 3; }
+
+        /* קול */
+        .voice-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 0;
+        }
+
+        .btn-voice {
+            width: 78px;
+            height: 78px;
+            border-radius: 50%;
+            background: #1e293b;
+            border: 3px solid var(--primary);
+            color: var(--primary);
+            font-size: 2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
+            touch-action: none;
+        }
+
+        .btn-voice.listening {
+            background: var(--danger);
+            border-color: var(--danger-hover);
+            color: white;
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.9);
+            transform: scale(1.05);
+        }
+
+        .voice-output {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            min-height: 20px;
+        }
+
+        .feature-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+        .feature-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+
+        .btn-feature {
+            background: #1e293b;
+            border: 1px solid rgba(255,255,255,0.1);
+            font-size: 0.85rem;
+            padding: 10px 4px;
+            color: #fff;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .slider-wrapper { margin-top: 8px; text-align: right; }
+        .slider-wrapper label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+        }
+        .slider-wrapper input[type="range"] { width: 100%; cursor: pointer; margin-top: 4px; }
+
+        /* ================== סגנונות אתגר המהירות ================== */
+        .qr-section {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(168, 85, 247, 0.3);
+            border-radius: 14px;
+            padding: 12px;
+            margin-bottom: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .qr-code-holder {
+            background: #ffffff;
+            padding: 8px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+            min-width: 130px;
+            min-height: 130px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .duel-arena {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .racer-card {
+            background: var(--card-bg);
+            border-radius: 14px;
+            padding: 14px;
+            text-align: right;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .racer-parent { border-top: 4px solid var(--cyan); }
+        .racer-student { border-top: 4px solid var(--purple); }
+
+        .team-input {
+            width: 100%;
+            background: #090e1a;
+            border: 1px solid #334155;
+            color: #fff;
+            padding: 9px 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+        }
+
+        .stopwatch-box {
+            background: #080c16;
+            border: 1px solid #1e293b;
+            border-radius: 10px;
+            padding: 10px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .stopwatch-time {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.9rem;
+            font-weight: 900;
+            color: #fff;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+        }
+
+        .stopwatch-controls { display: flex; gap: 6px; justify-content: center; }
+
+        .btn-sw {
+            flex: 1;
+            padding: 9px 0;
+            border: none;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .btn-sw-start { background: var(--success); color: #000; }
+        .btn-sw-stop { background: var(--danger); color: #fff; }
+        .btn-sw-reset { background: #334155; color: #fff; }
+
+        .field-input {
+            width: 100%;
+            background: #090e1a;
+            border: 1px solid #334155;
+            color: #fff;
+            padding: 9px 10px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .secret-vault-box {
+            background: rgba(8, 12, 22, 0.85);
+            border: 1px dashed #475569;
+            border-radius: 12px;
+            padding: 12px;
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .secret-status-tag {
+            display: inline-block;
+            font-size: 0.8rem;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-weight: bold;
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+            margin-bottom: 8px;
+        }
+        .secret-status-tag.unlocked {
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399;
+        }
+
+        /* עיצוב משופר ומודגש של שורת בדיקת החישוב */
+        .guess-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            align-items: center;
+        }
+
+        .guess-row .field-input {
+            flex: 1;
+        }
+
+        .btn-verify {
+            background: var(--primary);
+            color: #070b14;
+            border: none;
+            padding: 9px 18px;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 0.95rem;
+            cursor: pointer;
+            white-space: nowrap;
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+            transition: all 0.2s;
+        }
+        .btn-verify:active {
+            transform: scale(0.97);
+        }
+        .racer-student .btn-verify {
+            background: var(--purple);
+            color: #fff;
+            box-shadow: 0 0 10px rgba(168, 85, 247, 0.4);
+        }
+
+        .verify-feedback {
+            font-size: 0.85rem;
+            margin-top: 6px;
+            min-height: 18px;
+            font-weight: 600;
+        }
+        .revealed-result {
+            display: none;
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid var(--success);
+            padding: 6px;
+            border-radius: 8px;
+            margin-top: 6px;
+            font-size: 0.9rem;
+            color: #6ee7b7;
+            font-weight: bold;
+        }
+
+        /* מחשבון מדעי */
+        .calculator-panel {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 12px;
+            margin-bottom: 14px;
+        }
+
+        .calc-display {
+            background: #090e1a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 8px 12px;
+            text-align: left;
+            margin-bottom: 8px;
+        }
+
+        .calc-expression { font-size: 0.8rem; color: var(--text-muted); min-height: 14px; direction: ltr; }
+        .calc-result { font-family: 'Orbitron', monospace; font-size: 1.6rem; color: var(--cyan-glow); font-weight: 700; direction: ltr; }
+
+        .calc-shortcuts { display: flex; gap: 4px; margin-bottom: 8px; }
+        .btn-shortcut {
+            flex: 1;
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            padding: 6px 4px;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            cursor: pointer;
+        }
+
+        .calc-keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+        .btn-calc {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #fff;
+            padding: 10px 0;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .btn-calc:active { transform: scale(0.95); }
+        .btn-calc.op { background: #0f2744; color: var(--cyan); }
+        .btn-calc.equals { background: var(--cyan); color: #000; }
+        .btn-calc.clear { background: #3b1318; color: #f87171; }
+
+        .btn-declare-winner {
+            width: 100%;
+            background: linear-gradient(90deg, #06b6d4, #a855f7);
+            border: none;
+            color: #fff;
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 1.15rem;
+            font-weight: 800;
+            cursor: pointer;
+            margin-bottom: 14px;
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+        }
+
+        /* טבלה */
+        .leaderboard-panel {
+            background: var(--card-bg);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 12px;
+        }
+
+        .table-responsive { width: 100%; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: right; font-size: 0.85rem; }
+        th { background: #0f172a; color: var(--cyan); padding: 8px; border-bottom: 2px solid #334155; font-weight: 700; }
+        td { padding: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+
+        .rank-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            font-weight: 800;
+            font-size: 0.75rem;
+        }
+        .rank-1 { background: #fbbf24; color: #000; }
+        .rank-2 { background: #94a3b8; color: #000; }
+        .rank-3 { background: #b45309; color: #fff; }
+
+        /* מודאל */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            padding: 15px;
+            backdrop-filter: blur(8px);
+        }
+
+        .modal-content {
+            background: #0f172a;
+            border: 2px solid var(--cyan);
+            border-radius: 18px;
+            padding: 20px;
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 0 35px rgba(6, 182, 212, 0.5);
+        }
+
+        .btn-modal-close {
+            background: var(--cyan);
+            color: #000;
+            border: none;
+            padding: 9px 22px;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 0.95rem;
+            cursor: pointer;
+            margin-top: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>SuperBot Pro</h1>
+            <p>מרכז שליטה חכם & אתגר פיזיקלי</p>
+        </header>
+
+        <!-- סרגל מעבר בין מצב שלט למצב אתגר -->
+        <div class="tab-switcher">
+            <button class="tab-btn active" id="tabBtnRemote" onclick="switchView('remote')">🕹️ שלט ורובוט</button>
+            <button class="tab-btn tab-challenge" id="tabBtnChallenge" onclick="switchView('challenge')">🏁 משימת הורים וילדים</button>
+        </div>
+
+        <div class="status-panel">
+            <div id="statusDot" class="status-dot"></div>
+            <span id="statusText">מתחבר אוטומטית ל-Firebase...</span>
+        </div>
+
+        <!-- =================== טאב 1: מרכז שליטה (שלט) =================== -->
+        <div id="viewRemote" class="tab-content active">
+            
+            <!-- שליטה קולית - Push to Talk -->
+            <div class="control-section">
+                <div class="section-title">🎙️ פקודות קוליות (לחץ והחזק)</div>
+                <div class="voice-box">
+                    <button id="btnVoice" class="btn-voice">🎤</button>
+                    <div id="voiceStatus" class="voice-output">לחץ והחזק כדי לדבר, שחרר בסיום</div>
+                </div>
+            </div>
+
+            <!-- בקרת תנועה עם כפתורי +/- עדינים לשליטה במהירות -->
+            <div class="control-section">
+                <div class="section-title">🕹️ תנועת הרובוט</div>
+                <div class="remote-control">
+                    <button class="btn btn-dir grid-up" onclick="sendMove('FORWARD')" id="btn-FORWARD">▲<span>קדימה</span></button>
+                    
+                    <!-- כפתור הפחתת מהירות עדינה -->
+                    <button class="btn btn-speed-adj grid-minus" id="btnSpeedDown" title="הורדת מהירות (לחיצה רצופה להורדה מואצת)">−</button>
+                    
+                    <button class="btn btn-dir grid-right" onclick="sendMove('RIGHT')" id="btn-RIGHT">▶<span>ימינה</span></button>
+                    <button class="btn btn-stop grid-stop" onclick="sendMove('STOP')" id="btn-STOP">■<span>עצור</span></button>
+                    <button class="btn btn-dir grid-left" onclick="sendMove('LEFT')" id="btn-LEFT">◀<span>שמאלה</span></button>
+                    
+                    <!-- כפתור הגברת מהירות עדינה -->
+                    <button class="btn btn-speed-adj grid-plus" id="btnSpeedUp" title="הגברת מהירות (לחיצה רצופה להגברה מואצת)">+</button>
+                    
+                    <button class="btn btn-dir grid-down" onclick="sendMove('BACK')" id="btn-BACK">▼<span>אחורה</span></button>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+                    <button class="btn btn-party-mode" onclick="triggerPartyMode()">🎉<span>מצב מסיבה (סיבוב + לדים)</span></button>
+                    <button class="btn btn-auto" onclick="sendMove('LINE_TRACK')">🏁<span>מצב מעקב קו אוטונומי</span></button>
+                </div>
+            </div>
+
+            <!-- שליטה בראש -->
+            <div class="control-section">
+                <div class="section-title">🤖 כיוון הראש</div>
+                <div class="head-control">
+                    <button class="btn btn-dir head-up" onclick="sendHeadDir('UP')">▲<span>מעלה</span></button>
+                    <button class="btn btn-dir head-right" onclick="sendHeadDir('RIGHT')">▶<span>ימין</span></button>
+                    <button class="btn btn-dir head-stop" onclick="sendHeadDir('CENTER')">🎯<span>מרכז</span></button>
+                    <button class="btn btn-dir head-left" onclick="sendHeadDir('LEFT')">◀<span>שמאל</span></button>
+                    <button class="btn btn-dir head-down" onclick="sendHeadDir('DOWN')">▼<span>מטה</span></button>
+                </div>
+
+                <div class="slider-wrapper">
+                    <label><span>סיבוב אופקי:</span> <span id="panVal">90°</span></label>
+                    <input type="range" id="panRange" min="0" max="180" value="90" oninput="displayHeadPan(this.value)" onchange="updateHeadPan(this.value)">
+                </div>
+                <div class="slider-wrapper">
+                    <label><span>הטיה אנכית:</span> <span id="tiltVal">90°</span></label>
+                    <input type="range" id="tiltRange" min="30" max="150" value="90" oninput="displayHeadTilt(this.value)" onchange="updateHeadTilt(this.value)">
+                </div>
+            </div>
+
+            <!-- הבעות פנים -->
+            <div class="control-section">
+                <div class="section-title">😊 הבעות פנים</div>
+                <div class="feature-grid-3">
+                    <button class="btn btn-feature" onclick="sendFace('FACE_HAPPY')">😄 שמח</button>
+                    <button class="btn btn-feature" onclick="sendFace('FACE_ANGRY')">😡 כועס</button>
+                    <button class="btn btn-feature" onclick="sendFace('FACE_NORMAL')">😐 רגיל</button>
+                </div>
+            </div>
+
+            <!-- זמזם וצלילים -->
+            <div class="control-section">
+                <div class="section-title">🎵 זמזם וצלילים</div>
+                <div class="feature-grid">
+                    <button class="btn btn-feature" onclick="sendSound('BUZZ_BEEP')">🔊 צפצוף</button>
+                    <button class="btn btn-feature" onclick="sendSound('SONG_HAPPY')">🎶 מנגינה</button>
+                    <button class="btn btn-feature" onclick="sendSound('SONG_SIREN')">🚨 סירנה</button>
+                    <button class="btn btn-feature" style="border-color: var(--danger); color: #f87171;" onclick="sendSound('BUZZ_OFF')">🔇 השתק</button>
+                </div>
+            </div>
+
+            <!-- תאורה ואורות -->
+            <div class="control-section">
+                <div class="section-title">💡 תאורה</div>
+                <div class="feature-grid-3">
+                    <button class="btn btn-feature" onclick="sendLights('LED_OFF')">⚫ כיבוי</button>
+                    <button class="btn btn-feature" onclick="sendLights('LED_RAINBOW')">🌈 קשת</button>
+                    <button class="btn btn-feature" onclick="sendLights('LED_PARTY')">🎉 מסיבה</button>
+                </div>
+                <div class="slider-wrapper">
+                    <label><span>בהירות לדים:</span></label>
+                    <input type="range" id="brightnessRange" min="10" max="255" value="140" onchange="sendBrightness(this.value)">
+                </div>
+            </div>
+
+        </div>
+
+        <!-- =================== טאב 2: אתגר המהירות (משימה) =================== -->
+        <div id="viewChallenge" class="tab-content">
+            
+            <!-- סריקת QR להצטרפות -->
+            <div class="qr-section">
+                <div style="font-size: 0.9rem; font-weight: 700; color: var(--purple-glow);">📲 סריקת קוד לפתיחה בנייד</div>
+                <div class="qr-code-holder" id="qrcode"></div>
+                <button class="btn-feature" style="width: 100%;" onclick="copyCurrentUrl()">📋 העתק קישור לדפדפן</button>
+            </div>
+
+            <!-- זירת הדו-קרב -->
+            <div class="duel-arena">
+                <!-- כרטיס הורה -->
+                <div class="racer-card racer-parent">
+                    <div style="font-weight: 800; color: var(--cyan); margin-bottom: 8px;">👨‍👩‍👧 נסיעת ההורה</div>
+                    <input type="text" id="parentName" class="team-input" placeholder="שם ההורה...">
+                    <div class="stopwatch-box">
+                        <div class="stopwatch-time" id="swParentDisplay">0.00s</div>
+                        <div class="stopwatch-controls">
+                            <button class="btn-sw btn-sw-start" onclick="swStart('parent')">▶ הפעל</button>
+                            <button class="btn-sw btn-sw-stop" onclick="swStop('parent')">⏹ עצור</button>
+                            <button class="btn-sw btn-sw-reset" onclick="swReset('parent')">↺ אפס</button>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 2px;">מרחק שנמדד (ס"מ):</label>
+                        <input type="number" id="parentDist" class="field-input" value="150">
+                    </div>
+                    <div class="secret-vault-box">
+                        <div class="secret-status-tag" id="parentVaultTag">🔒 התוצאה ננעלה!</div>
+                        <div class="guess-row">
+                            <input type="number" step="0.1" id="parentGuess" class="field-input" placeholder="תוצאת חישוב...">
+                            <button class="btn-verify" onclick="verifyGuess('parent')">בדוק חישוב</button>
+                        </div>
+                        <div class="verify-feedback" id="parentFeedback"></div>
+                        <div class="revealed-result" id="parentRevealed"></div>
+                    </div>
+                </div>
+
+                <!-- כרטיס תלמיד -->
+                <div class="racer-card racer-student">
+                    <div style="font-weight: 800; color: var(--purple); margin-bottom: 8px;">🚀 נסיעת התלמיד/ה</div>
+                    <input type="text" id="studentName" class="team-input" placeholder="שם התלמיד/ה...">
+                    <div class="stopwatch-box">
+                        <div class="stopwatch-time" id="swStudentDisplay">0.00s</div>
+                        <div class="stopwatch-controls">
+                            <button class="btn-sw btn-sw-start" onclick="swStart('student')">▶ הפעל</button>
+                            <button class="btn-sw btn-sw-stop" onclick="swStop('student')">⏹ עצור</button>
+                            <button class="btn-sw btn-sw-reset" onclick="swReset('student')">↺ אפס</button>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <label style="font-size: 0.8rem; color: var(--text-muted); display: block; margin-bottom: 2px;">מרחק שנמדד (ס"מ):</label>
+                        <input type="number" id="studentDist" class="field-input" value="150">
+                    </div>
+                    <div class="secret-vault-box">
+                        <div class="secret-status-tag" id="studentVaultTag">🔒 התוצאה ננעלה!</div>
+                        <div class="guess-row">
+                            <input type="number" step="0.1" id="studentGuess" class="field-input" placeholder="תוצאת חישוב...">
+                            <button class="btn-verify" onclick="verifyGuess('student')">בדוק חישוב</button>
+                        </div>
+                        <div class="verify-feedback" id="studentFeedback"></div>
+                        <div class="revealed-result" id="studentRevealed"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- מחשבון עזר -->
+            <div class="calculator-panel">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+                    <span style="font-size: 0.85rem; font-weight: 700; color: var(--cyan);">🧮 מחשבון עזר (v = d ÷ t)</span>
+                </div>
+                <div class="calc-shortcuts">
+                    <button class="btn-shortcut" onclick="loadCalcValues('parent')">טען הורה</button>
+                    <button class="btn-shortcut" onclick="loadCalcValues('student')">טען תלמיד</button>
+                    <button class="btn-shortcut" onclick="copyResultToActiveGuess()">העתק לשדה ↵</button>
+                </div>
+                <div class="calc-display">
+                    <div class="calc-expression" id="calcExpr">0</div>
+                    <div class="calc-result" id="calcRes">0</div>
+                </div>
+                <div class="calc-keypad">
+                    <button class="btn-calc clear" onclick="calcInput('C')">C</button>
+                    <button class="btn-calc op" onclick="calcInput('/')">÷</button>
+                    <button class="btn-calc op" onclick="calcInput('*')">×</button>
+                    <button class="btn-calc clear" onclick="calcInput('DEL')">⌫</button>
+
+                    <button class="btn-calc" onclick="calcInput('7')">7</button>
+                    <button class="btn-calc" onclick="calcInput('8')">8</button>
+                    <button class="btn-calc" onclick="calcInput('9')">9</button>
+                    <button class="btn-calc op" onclick="calcInput('-')">-</button>
+
+                    <button class="btn-calc" onclick="calcInput('4')">4</button>
+                    <button class="btn-calc" onclick="calcInput('5')">5</button>
+                    <button class="btn-calc" onclick="calcInput('6')">6</button>
+                    <button class="btn-calc op" onclick="calcInput('+')">+</button>
+
+                    <button class="btn-calc" onclick="calcInput('1')">1</button>
+                    <button class="btn-calc" onclick="calcInput('2')">2</button>
+                    <button class="btn-calc" onclick="calcInput('3')">3</button>
+                    <button class="btn-calc equals" style="grid-row: span 2;" onclick="calcInput('=')">=</button>
+
+                    <button class="btn-calc" style="grid-column: span 2;" onclick="calcInput('0')">0</button>
+                    <button class="btn-calc" onclick="calcInput('.')">.</button>
+                </div>
+            </div>
+
+            <!-- כפתור הכרזת מנצח -->
+            <button class="btn-declare-winner" onclick="declareWinnerAndSave()">🏆 הכרז מנצח ושמור ללוח הכיתתי!</button>
+
+            <!-- לוח תוצאות כיתתי -->
+            <div class="leaderboard-panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <div style="font-size: 0.95rem; font-weight: 800; color: var(--gold);">🏁 לוח תוצאות כיתתי חי</div>
+                    <button class="btn-feature" style="padding: 4px 8px; font-size: 0.75rem;" onclick="clearLeaderboard()">איפוס</button>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>משפחה</th>
+                                <th>מנצח בדו-קרב</th>
+                                <th>סטטוס דיוק חישוב</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboardBody">
+                            <tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 15px;">עדיין אין תוצאות.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- מודאל הכרזה חגיגי -->
+    <div class="modal-overlay" id="winnerModal">
+        <div class="modal-content">
+            <div style="font-size: 3rem;">🏆</div>
+            <h2 id="modalTitle" style="color: var(--gold); font-size: 1.5rem; margin: 8px 0;">ההכרזה!</h2>
+            <p id="modalBody" style="font-size: 0.95rem; line-height: 1.5; color: #e2e8f0; margin-bottom: 8px;"></p>
+            <div id="modalStats" style="background: rgba(0,0,0,0.4); padding: 8px; border-radius: 8px; font-size: 0.85rem;"></div>
+            <button class="btn-modal-close" onclick="closeWinnerModal()">סגור</button>
+        </div>
+    </div>
+
+    <script>
+        const DEFAULT_FIREBASE_URL = "https://motormovmentfinal-default-rtdb.firebaseio.com";
+        let activeDatabase = null;
+        let currentPan = 90;
+        let currentTilt = 90;
+        let currentMotorSpeed = 1500; // ערך פנימי ללא תצוגה
+
+        // החלפת תצוגה בין שלט לאתגר
+        function switchView(viewName) {
+            document.getElementById('viewRemote').classList.remove('active');
+            document.getElementById('viewChallenge').classList.remove('active');
+            document.getElementById('tabBtnRemote').classList.remove('active');
+            document.getElementById('tabBtnChallenge').classList.remove('active');
+
+            if (viewName === 'remote') {
+                document.getElementById('viewRemote').classList.add('active');
+                document.getElementById('tabBtnRemote').classList.add('active');
+            } else {
+                document.getElementById('viewChallenge').classList.add('active');
+                document.getElementById('tabBtnChallenge').classList.add('active');
+            }
+        }
+
+        // ================= חיבור אוטומטי ל-Firebase =================
+        function autoConnectFirebase() {
+            document.getElementById('statusText').innerText = "מתחבר ל-Firebase...";
+            document.getElementById('statusDot').style.backgroundColor = "#fbbf24";
+
+            try {
+                if (firebase.apps.length > 0) {
+                    firebase.app().delete().then(() => initFB(DEFAULT_FIREBASE_URL));
+                } else {
+                    initFB(DEFAULT_FIREBASE_URL);
+                }
+            } catch (error) {
+                document.getElementById('statusText').innerText = "שגיאת חיבור: " + error.message;
+            }
+        }
+
+        function initFB(url) {
+            firebase.initializeApp({ databaseURL: url });
+            activeDatabase = firebase.database();
+            
+            activeDatabase.ref(".info/connected").on("value", function(snap) {
+                if (snap.val() === true) {
+                    document.getElementById('statusDot').className = "status-dot connected";
+                    document.getElementById('statusText').innerText = "מחובר בהצלחה לרובוט ולמערכת!";
+                } else {
+                    document.getElementById('statusDot').className = "status-dot";
+                    document.getElementById('statusText').innerText = "החיבור נותק.";
+                }
+            });
+
+            // סנכרון ראשוני שקט של מהירות המנוע מה-DB
+            activeDatabase.ref("bot/motor_speed").once("value", function(snapshot) {
+                let currentVal = snapshot.val();
+                if (currentVal && currentVal >= 500) {
+                    currentMotorSpeed = currentVal;
+                }
+            });
+
+            // האזנה לתוצאות האתגר הכיתתי
+            activeDatabase.ref('speed_challenge/scores').on('value', function(snapshot) {
+                const data = snapshot.val();
+                scoresLeaderboard = [];
+                if (data) {
+                    Object.keys(data).forEach(key => scoresLeaderboard.push(data[key]));
+                }
+                renderLeaderboard();
+            });
+        }
+
+        // ================= שליטה עדינה על מהירות באמצעות כפתורי +/- =================
+        function adjustSpeed(delta) {
+            currentMotorSpeed = Math.max(500, Math.min(4095, currentMotorSpeed + delta));
+            if (activeDatabase) {
+                activeDatabase.ref('bot/motor_speed').set(currentMotorSpeed).catch(console.error);
+            }
+        }
+
+        function setupSpeedButton(btnId, stepSmall, stepBig) {
+            const btn = document.getElementById(btnId);
+            let pressTimer = null;
+            let intervalTimer = null;
+
+            function startPress(e) {
+                if (e) e.preventDefault();
+                adjustSpeed(stepSmall); // לחיצה ראשונית משנה בקפיצה קטנה של 2
+
+                // זיהוי לחיצה ארוכה - כל 2 שניות (2000ms) שינוי נוסף של 5
+                pressTimer = setTimeout(() => {
+                    adjustSpeed(stepBig);
+                    intervalTimer = setInterval(() => {
+                        adjustSpeed(stepBig);
+                    }, 2000);
+                }, 2000);
+            }
+
+            function stopPress(e) {
+                if (pressTimer) clearTimeout(pressTimer);
+                if (intervalTimer) clearInterval(intervalTimer);
+                pressTimer = null;
+                intervalTimer = null;
+            }
+
+            btn.addEventListener('touchstart', startPress, { passive: false });
+            btn.addEventListener('touchend', stopPress, { passive: false });
+            btn.addEventListener('touchcancel', stopPress, { passive: false });
+            btn.addEventListener('mousedown', startPress);
+            btn.addEventListener('mouseup', stopPress);
+            btn.addEventListener('mouseleave', stopPress);
+        }
+
+        function sendMove(val) {
+            if (!activeDatabase) return;
+            if (val === 'STOP') sendSound('BUZZ_OFF');
+            activeDatabase.ref('bot/move').set(val).catch(console.error);
+        }
+
+        function triggerPartyMode() {
+            if (!activeDatabase) return;
+            sendMove('PARTY');
+            sendLights('LED_PARTY');
+            sendSound('SONG_HAPPY');
+            sendFace('FACE_HAPPY');
+        }
+
+        function sendFace(val) { if (activeDatabase) activeDatabase.ref('bot/face').set(val).catch(console.error); }
+        function sendSound(val) { if (activeDatabase) activeDatabase.ref('bot/sound').set(val).catch(console.error); }
+        function sendLights(val) { if (activeDatabase) activeDatabase.ref('bot/lights').set(val).catch(console.error); }
+        function sendBrightness(val) { if (activeDatabase) activeDatabase.ref('bot/brightness').set(parseInt(val)).catch(console.error); }
+
+        function sendHeadPosition(pan, tilt) {
+            if (!activeDatabase) return;
+            activeDatabase.ref('bot/head').set(`HEAD_${pan}_${tilt}`).catch(console.error);
+        }
+
+        function displayHeadPan(val) { document.getElementById('panVal').innerText = val + "°"; }
+        function displayHeadTilt(val) { document.getElementById('tiltVal').innerText = val + "°"; }
+
+        function updateHeadPan(val) { currentPan = parseInt(val); displayHeadPan(currentPan); sendHeadPosition(currentPan, currentTilt); }
+        function updateHeadTilt(val) { currentTilt = parseInt(val); displayHeadTilt(currentTilt); sendHeadPosition(currentPan, currentTilt); }
+
+        function sendHeadDir(dir) {
+            if (dir === 'CENTER') { currentPan = 90; currentTilt = 90; }
+            else if (dir === 'UP')    currentTilt = Math.min(150, currentTilt + 15);
+            else if (dir === 'DOWN')  currentTilt = Math.max(30, currentTilt - 15);
+            else if (dir === 'LEFT')  currentPan  = Math.min(180, currentPan + 15);
+            else if (dir === 'RIGHT') currentPan  = Math.max(0, currentPan - 15);
+
+            document.getElementById('panRange').value = currentPan;
+            document.getElementById('tiltRange').value = currentTilt;
+            displayHeadPan(currentPan);
+            displayHeadTilt(currentTilt);
+            sendHeadPosition(currentPan, currentTilt);
+        }
+
+        // ================= זיהוי קולי (Push to talk) =================
+        let recognition = null;
+        let isHolding = false;
+        let lastTranscript = "";
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (SpeechRec) {
+            recognition = new SpeechRec();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'he-IL';
+
+            recognition.onstart = function() {
+                const btn = document.getElementById('btnVoice');
+                btn.classList.add('listening');
+                btn.innerText = '🔴';
+                document.getElementById('voiceStatus').innerText = "מקשיב...";
+            };
+
+            recognition.onresult = function(event) {
+                let currentText = "";
+                for (let i = 0; i < event.results.length; ++i) {
+                    currentText += event.results[i][0].transcript;
+                }
+                lastTranscript = currentText.trim().toLowerCase();
+                document.getElementById('voiceStatus').innerText = `שומע: "${lastTranscript}"`;
+            };
+
+            recognition.onend = function() {
+                const btn = document.getElementById('btnVoice');
+                btn.classList.remove('listening');
+                btn.innerText = '🎤';
+                if (lastTranscript.length > 0) {
+                    document.getElementById('voiceStatus').innerText = `פקודה: "${lastTranscript}"`;
+                    handleVoiceCommand(lastTranscript);
+                    lastTranscript = "";
+                } else {
+                    document.getElementById('voiceStatus').innerText = "לא נקלטה פקודה.";
+                }
+            };
+        }
+
+        const voiceBtn = document.getElementById('btnVoice');
+        function startListening(e) {
+            if (e) e.preventDefault();
+            if (!recognition) return;
+            if (isHolding) return;
+            isHolding = true;
+            lastTranscript = "";
+            try { recognition.start(); } catch(err){}
+        }
+
+        function stopListening(e) {
+            if (e) e.preventDefault();
+            if (!isHolding) return;
+            isHolding = false;
+            setTimeout(() => { try { recognition.stop(); } catch(err){} }, 200);
+        }
+
+        voiceBtn.addEventListener('touchstart', startListening, { passive: false });
+        voiceBtn.addEventListener('touchend', stopListening, { passive: false });
+        voiceBtn.addEventListener('mousedown', startListening);
+        voiceBtn.addEventListener('mouseup', stopListening);
+
+        function handleVoiceCommand(cmd) {
+            if (cmd.includes("מסיבה")) { triggerPartyMode(); return; }
+
+            let action = "";
+            if (cmd.includes("קדימה") || cmd.includes("סע")) action = "FORWARD";
+            else if (cmd.includes("אחורה")) action = "BACK";
+            else if (cmd.includes("ימינה")) action = "RIGHT";
+            else if (cmd.includes("שמאלה")) action = "LEFT";
+            else if (cmd.includes("עצור")) action = "STOP";
+
+            if (action) sendMove(action);
+        }
+
+        // ================= אתגר המהירות: סטופרים & QR =================
+        function initQrCode() {
+            let url = window.location.href;
+            if (url.startsWith("file://")) url = "https://your-github-username.github.io/superbot/";
+            const container = document.getElementById('qrcode');
+            container.innerHTML = "";
+            new QRCode(container, {
+                text: url,
+                width: 130,
+                height: 130,
+                colorDark: "#070b14",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
+            });
+        }
+
+        function copyCurrentUrl() {
+            navigator.clipboard.writeText(window.location.href).then(() => alert("הקישור הועתק!"));
+        }
+
+        const swData = {
+            parent: { timer: null, startTime: 0, elapsed: 0, running: false },
+            student: { timer: null, startTime: 0, elapsed: 0, running: false }
+        };
+
+        function swStart(who) {
+            const data = swData[who];
+            if (data.running) return;
+            data.running = true;
+            data.startTime = performance.now() - data.elapsed;
+            data.timer = setInterval(() => {
+                data.elapsed = performance.now() - data.startTime;
+                document.getElementById(`sw${capitalize(who)}Display`).innerText = (data.elapsed / 1000).toFixed(2) + "s";
+            }, 30);
+        }
+
+        function swStop(who) {
+            const data = swData[who];
+            if (!data.running) return;
+            data.running = false;
+            clearInterval(data.timer);
+            const timeSec = parseFloat((data.elapsed / 1000).toFixed(2));
+            const distCm = parseFloat(document.getElementById(`${who}Dist`).value) || 0;
+            if (timeSec > 0 && distCm > 0) {
+                const tag = document.getElementById(`${who}VaultTag`);
+                tag.innerText = "🔒 התוצאה ננעלה! חשבו ובדקו";
+            }
+        }
+
+        function swReset(who) {
+            const data = swData[who];
+            data.running = false;
+            clearInterval(data.timer);
+            data.elapsed = 0;
+            document.getElementById(`sw${capitalize(who)}Display`).innerText = "0.00s";
+            document.getElementById(`${who}VaultTag`).innerText = "🔒 התוצאה ננעלה!";
+            document.getElementById(`${who}VaultTag`).className = "secret-status-tag";
+            document.getElementById(`${who}Feedback`).innerText = "";
+            document.getElementById(`${who}Revealed`).style.display = "none";
+        }
+
+        function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+        function verifyGuess(who) {
+            const guess = parseFloat(document.getElementById(`${who}Guess`).value);
+            const feedback = document.getElementById(`${who}Feedback`);
+            const revealed = document.getElementById(`${who}Revealed`);
+            const timeSec = parseFloat((swData[who].elapsed / 1000).toFixed(2));
+            const distCm = parseFloat(document.getElementById(`${who}Dist`).value) || 0;
+
+            if (timeSec <= 0) { feedback.style.color = "var(--danger)"; feedback.innerText = "מדדו זמן בסטופר!"; return; }
+            if (isNaN(guess) || guess <= 0) { feedback.style.color = "var(--danger)"; feedback.innerText = "הזינו מספר חיובי!"; return; }
+
+            const actualSpeed = distCm / timeSec;
+            const errorMargin = Math.abs(guess - actualSpeed);
+
+            if (Math.abs(guess - (distCm * timeSec)) < 5) {
+                feedback.style.color = "var(--danger)";
+                feedback.innerText = "❌ שגיאה: הכפלתם במקום לחלק (v = d / t)!";
+                return;
+            }
+
+            if (errorMargin <= 1.0 || (errorMargin / actualSpeed) <= 0.05) {
+                feedback.style.color = "var(--success)";
+                feedback.innerText = `🎯 בול פגיעה! החישוב מדויק לחלוטין!`;
+                document.getElementById(`${who}VaultTag`).innerText = "🔓 פוצח בהצלחה!";
+                document.getElementById(`${who}VaultTag`).className = "secret-status-tag unlocked";
+                revealed.style.display = "block";
+                revealed.innerText = `אימות עבר בהצלחה! חישוב נכון.`;
+                confetti({ particleCount: 35, spread: 50 });
+            } else if (guess < actualSpeed) {
+                feedback.style.color = "var(--gold)"; feedback.innerText = `הערכה נמוכה מדי (התוצאה גבוהה יותר).`;
+            } else {
+                feedback.style.color = "var(--gold)"; feedback.innerText = `הערכה גבוהה מדי (התוצאה נמוכה יותר).`;
+            }
+        }
+
+        // ================= מחשבון =================
+        let calcExpr = "";
+        function calcInput(char) {
+            const exprEl = document.getElementById('calcExpr');
+            const resEl = document.getElementById('calcRes');
+            if (char === 'C') { calcExpr = ""; exprEl.innerText = "0"; resEl.innerText = "0"; return; }
+            if (char === 'DEL') { calcExpr = calcExpr.slice(0, -1); exprEl.innerText = calcExpr || "0"; return; }
+            if (char === '=') {
+                try {
+                    const sanitized = calcExpr.replace(/[^0-9+\-*/.]/g, '');
+                    const result = Function(`'use strict'; return (${sanitized})`)();
+                    resEl.innerText = Number.isInteger(result) ? result : parseFloat(result.toFixed(2));
+                } catch { resEl.innerText = "שגיאה"; }
+                return;
+            }
+            calcExpr += char;
+            exprEl.innerText = calcExpr;
+        }
+
+        function loadCalcValues(who) {
+            const timeSec = parseFloat((swData[who].elapsed / 1000).toFixed(2));
+            const distCm = parseFloat(document.getElementById(`${who}Dist`).value) || 0;
+            if (timeSec <= 0) { alert("מדדו זמן בסטופר קודם!"); return; }
+            calcExpr = `${distCm}/${timeSec}`;
+            document.getElementById('calcExpr').innerText = calcExpr;
+            calcInput('=');
+        }
+
+        function copyResultToActiveGuess() {
+            const res = document.getElementById('calcRes').innerText;
+            if (res === "0" || res === "שגיאה") return;
+            const pGuess = document.getElementById('parentGuess');
+            const sGuess = document.getElementById('studentGuess');
+            if (!pGuess.value) pGuess.value = res;
+            else sGuess.value = res;
+        }
+
+        // ================= הכרזה ולוח תוצאות (ללא חשיפת המהירות) =================
+        let scoresLeaderboard = [];
+        function declareWinnerAndSave() {
+            const pTime = parseFloat((swData.parent.elapsed / 1000).toFixed(2));
+            const sTime = parseFloat((swData.student.elapsed / 1000).toFixed(2));
+            const pDist = parseFloat(document.getElementById('parentDist').value) || 0;
+            const sDist = parseFloat(document.getElementById('studentDist').value) || 0;
+
+            if (pTime <= 0 || sTime <= 0) {
+                alert("מדדו זמן בסטופר גם להורה וגם לתלמיד!");
+                return;
+            }
+
+            const pSpeed = pDist / pTime;
+            const sSpeed = sDist / sTime;
+            const pName = document.getElementById('parentName').value.trim() || "הורה";
+            const sName = document.getElementById('studentName').value.trim() || "תלמיד/ה";
+
+            let winner = (pSpeed > sSpeed) ? `ההורה (${pName})` : (sSpeed > pSpeed ? `התלמיד/ה (${sName})` : "תיקו!");
+
+            document.getElementById('modalTitle').innerText = `המנצח בדו-קרב: ${winner}!`;
+            document.getElementById('modalBody').innerHTML = `
+                כל הכבוד לשני המשתתפים על המדידה והחישוב הפיזיקלי!
+            `;
+            document.getElementById('modalStats').innerText = `התוצאה נשמרה בלוח הכיתתי`;
+            document.getElementById('winnerModal').style.display = "flex";
+            confetti({ particleCount: 70, spread: 60 });
+
+            const record = {
+                family: `${pName} & ${sName}`,
+                winner: winner,
+                status: "הושלם בהצלחה"
+            };
+
+            scoresLeaderboard.push(record);
+            renderLeaderboard();
+            if (activeDatabase) activeDatabase.ref('speed_challenge/scores').push(record).catch(console.error);
+        }
+
+        function closeWinnerModal() { document.getElementById('winnerModal').style.display = "none"; }
+
+        function renderLeaderboard() {
+            const tbody = document.getElementById('leaderboardBody');
+            if (scoresLeaderboard.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 15px;">עדיין אין תוצאות.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = scoresLeaderboard.map((row, idx) => {
+                let badgeClass = idx === 0 ? "rank-1" : (idx === 1 ? "rank-2" : (idx === 2 ? "rank-3" : ""));
+                let icon = idx === 0 ? "🥇" : (idx === 1 ? "🥈" : (idx === 2 ? "🥉" : idx + 1));
+                return `
+                    <tr>
+                        <td><span class="rank-badge ${badgeClass}">${icon}</span></td>
+                        <td style="font-weight: bold; color: #fff;">${row.family}</td>
+                        <td style="color: var(--gold); font-weight: bold;">${row.winner}</td>
+                        <td style="color: var(--success);">${row.status || 'הושלם'}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function clearLeaderboard() {
+            if (confirm("האם לאפס את לוח התוצאות הכיתתי?")) {
+                scoresLeaderboard = [];
+                renderLeaderboard();
+                if (activeDatabase) activeDatabase.ref('speed_challenge/scores').remove().catch(console.error);
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initQrCode();
+            autoConnectFirebase();
+            // הגדרת כפתורי +/-: לחיצה = 2, לחיצה רציפה כל 2 שניות = 5
+            setupSpeedButton('btnSpeedDown', -2, -5);
+            setupSpeedButton('btnSpeedUp', 2, 5);
+        });
+    </script>
+</body>
+</html>
